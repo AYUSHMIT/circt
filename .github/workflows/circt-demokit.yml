@@ -1,0 +1,60 @@
+name: CIRCT DemoKit
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-run-demo:
+    runs-on: ubuntu-latest
+    env:
+      CIRCT_INTEGRATION_IMAGE: ghcr.io/circt/images/circt-integration-test:v19.2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Prepare repo and submodules
+        run: git submodule update --init --recursive
+
+      - name: Build CIRCT in integration image (Ninja)
+        run: |
+          ./utils/run-docker.sh bash -lc '
+            cmake -G Ninja llvm/llvm -B build \
+              -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DLLVM_ENABLE_ASSERTIONS=ON \
+              -DLLVM_TARGETS_TO_BUILD=host \
+              -DLLVM_ENABLE_PROJECTS=mlir \
+              -DLLVM_EXTERNAL_PROJECTS=circt \
+              -DLLVM_EXTERNAL_CIRCT_SOURCE_DIR=$PWD \
+              -DLLVM_ENABLE_LLD=ON \
+              -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+              -DCIRCT_BINDINGS_PYTHON_ENABLED=ON \
+              -DCIRCT_ENABLE_FRONTENDS=PyCDE \
+              -DESI_RUNTIME=ON
+            ninja -C build firtool circt-opt mlir-translate
+          '
+
+      - name: Run CIRCT demos (FIRRTL + HW/SV)
+        run: |
+          ./utils/run-docker.sh bash -lc '
+            export PYTHONPATH=$PWD/build/python_packages
+            bash scripts/circt-demo.sh
+          '
+
+      - name: Optional: Run PyCDE demo
+        run: |
+          ./utils/run-docker.sh bash -lc '
+            export PYTHONPATH=$PWD/build/python_packages
+            python3 -V
+            bash scripts/pycde-demo.sh
+          '
+
+      - name: Upload demo artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: circt-demokit-artifacts
+          path: |
+            out/*.sv
+            out/*.mlir
+            out/pycde/**
