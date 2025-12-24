@@ -42,7 +42,7 @@ jobs:
             bash scripts/circt-demo.sh
           '
 
-      - name: Optional: Run PyCDE demo
+      - name: Optional Run PyCDE demo
         run: |
           ./utils/run-docker.sh bash -lc '
             export PYTHONPATH=$PWD/build/python_packages
